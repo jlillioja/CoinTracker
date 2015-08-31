@@ -153,9 +153,11 @@ public class MainActivity extends Activity {
             Uri.Builder builder = new Uri.Builder();
             builder.scheme("https")
                     .authority("blockchain.info")
+                    .appendPath("address")
                     .appendPath(ADDRESS)
                     .appendQueryParameter("format", "json");
             String URL = builder.build().toString();
+            listAdapter.add(URL);
             new DownloadJsonTask().execute(URL);
         } else {
             showErrorPage();
@@ -176,6 +178,7 @@ public class MainActivity extends Activity {
 
         @Override
         protected String doInBackground(String... urls) {
+            listAdapter.add(urls[0]);
             try {
                 return loadJsonFromNetwork(urls[0]);
             } catch (IOException e) {
@@ -187,7 +190,6 @@ public class MainActivity extends Activity {
 
         @Override
         protected void onPostExecute(String result) {
-            setContentView(R.layout.main);
             // Displays the HTML string in the UI via a WebView
             listAdapter.add(result);
         }
