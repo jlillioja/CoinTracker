@@ -11,7 +11,7 @@ import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ArrayAdapter;
@@ -31,15 +31,7 @@ import java.util.Calendar;
 
 public class MainActivity extends Activity {
 
-    public static final String WIFI = "Wi-Fi";
-    public static final String ANY = "Any";
-
-    // Whether there is a Wi-Fi connection.
-    private static boolean wifiConnected = false;
-    // Whether there is a mobile connection.
-    private static boolean mobileConnected = false;
-    // Whether the display should be refreshed.
-    public static boolean refreshDisplay = true;
+    public static boolean refreshDisplay;
 
     // The user's current network preference setting.
     public static String sPref = null;
@@ -51,6 +43,10 @@ public class MainActivity extends Activity {
     private ArrayAdapter<String> listAdapter;
 
     private final String ADDRESS = "13xwb8zh1WaidugZwjVZExJwsnWT5xfDzf";
+    private final String ADDRESS_FILENAME = "addresses";
+    private SharedPreferences addresses;
+
+    private final String tag = "CoinTracker";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,28 +66,21 @@ public class MainActivity extends Activity {
         listView = (ListView) findViewById(R.id.listview1);
         listView.setAdapter(listAdapter);
 
-        listAdapter.add("Test List Item1");
+        addresses = getSharedPreferences(ADDRESS_FILENAME, 0);
+        SharedPreferences.Editor editor = addresses.edit();
+        editor.putString("address1",ADDRESS);
+        editor.commit();
+
+        Log.d(tag, "Completed onCreate");
     }
 
     public void onStart() {
         super.onStart();
-        listAdapter.add("Test List Item2");
-
-        SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this);
-
-        // Retrieves a string value for the preferences. The second parameter
-        // is the default value to use if a preference value is not found.
-        sPref = sharedPrefs.getString("listPref", "Wi-Fi");
-
-        updateConnectedFlags();
-
-        // Only loads the page if refreshDisplay is true. Otherwise, keeps previous
-        // display. For example, if the user has set "Wi-Fi only" in prefs and the
-        // device loses its Wi-Fi connection midway through the user using the app,
-        // you don't want to refresh the display--this would force the display of
-        // an error page instead of stackoverflow.com content.
         if (refreshDisplay) {
+            Log.d(tag, "refreshDisplay = true, running loadPage");
             loadPage();
+        } else {
+            Log.d(tag, "refreshDisplay = false");
         }
     }
 
@@ -126,42 +115,18 @@ public class MainActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
-    // Checks the network connection and sets the wifiConnected and mobileConnected
-    // variables accordingly.
-    private void updateConnectedFlags() {
-        ConnectivityManager connMgr =
-                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-
-        NetworkInfo activeInfo = connMgr.getActiveNetworkInfo();
-        if (activeInfo != null && activeInfo.isConnected()) {
-            wifiConnected = activeInfo.getType() == ConnectivityManager.TYPE_WIFI;
-            mobileConnected = activeInfo.getType() == ConnectivityManager.TYPE_MOBILE;
-        } else {
-            wifiConnected = false;
-            mobileConnected = false;
-        }
-    }
-
-    // Uses AsyncTask subclass to download the XML feed from stackoverflow.com.
-    // This avoids UI lock up. To prevent network operations from
-    // causing a delay that results in a poor user experience, always perform
-    // network operations on a separate thread from the UI.
+    // Uses AsyncTask subclass to download the JSON object from blockchain.info
     private void loadPage() {
-        if (((sPref.equals(ANY)) && (wifiConnected || mobileConnected))
-                || ((sPref.equals(WIFI)) && (wifiConnected))) {
-            // AsyncTask subclass
-            Uri.Builder builder = new Uri.Builder();
-            builder.scheme("https")
-                    .authority("blockchain.info")
-                    .appendPath("address")
-                    .appendPath(ADDRESS)
-                    .appendQueryParameter("format", "json");
-            String URL = builder.build().toString();
-            listAdapter.add(URL);
-            new DownloadJsonTask().execute(URL);
-        } else {
-            showErrorPage();
-        }
+        // AsyncTask subclass
+        Uri.Builder builder = new Uri.Builder();
+        builder.scheme("https")
+                .authority("blockchain.info")
+                .appendPath("address")
+                .appendPath(addresses.getString("address1", "0"))
+                .appendQueryParameter("format", "json");
+        String URL = builder.build().toString();
+        Log.d(tag, "URL constructed: "+URL);
+        new DownloadJsonTask().execute(URL);
     }
 
     // Displays an error if the app is unable to load content.
@@ -178,12 +143,14 @@ public class MainActivity extends Activity {
 
         @Override
         protected String doInBackground(String... urls) {
-            listAdapter.add(urls[0]);
+            Log.d(tag, "Doing in background: loadJsonFromNetwork "+urls[0]);
             try {
                 return loadJsonFromNetwork(urls[0]);
             } catch (IOException e) {
+                Log.d(tag, "DownloadJsonTask.doInBackground threw IOException");
                 return getResources().getString(R.string.connection_error);
             } catch (JSONException e) {
+                Log.d(tag, "DownloadJsonTask.doInBackground threw JSONException");
                 return getResources().getString(R.string.json_error);
             }
         }
@@ -203,10 +170,6 @@ public class MainActivity extends Activity {
         String summary = null;
         Calendar rightNow = Calendar.getInstance();
         DateFormat formatter = new SimpleDateFormat("MMM dd h:mmaa");
-
-        // Checks whether the user set the preference to include summary text
-        SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean pref = sharedPrefs.getBoolean("summaryPref", false);
 
         try {
             stream = downloadUrl(urlString);
@@ -239,34 +202,17 @@ public class MainActivity extends Activity {
 
         @Override
         public void onReceive(Context context, Intent intent) {
-            ConnectivityManager connMgr =
-                    (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            ConnectivityManager connMgr = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
-
-            // Checks the user prefs and the network connection. Based on the result, decides
-            // whether
-            // to refresh the display or keep the current display.
-            // If the userpref is Wi-Fi only, checks to see if the device has a Wi-Fi connection.
-            if (WIFI.equals(sPref) && networkInfo != null
-                    && networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
-                // If device has its Wi-Fi connection, sets refreshDisplay
-                // to true. This causes the display to be refreshed when the user
-                // returns to the app.
+            if (networkInfo != null) {
                 refreshDisplay = true;
-                Toast.makeText(context, R.string.wifi_connected, Toast.LENGTH_SHORT).show();
-
-                // If the setting is ANY network and there is a network connection
-                // (which by process of elimination would be mobile), sets refreshDisplay to true.
-            } else if (ANY.equals(sPref) && networkInfo != null) {
-                refreshDisplay = true;
-
-                // Otherwise, the app can't download content--either because there is no network
-                // connection (mobile or Wi-Fi), or because the pref setting is WIFI, and there
-                // is no Wi-Fi connection.
-                // Sets refreshDisplay to false.
+                Log.d(tag, "Network connected, refreshDisplay = true");
+                Toast.makeText(context, R.string.network_connected, Toast.LENGTH_SHORT).show();
+                loadPage();
             } else {
                 refreshDisplay = false;
-                Toast.makeText(context, R.string.lost_connection, Toast.LENGTH_SHORT).show();
+                Log.d(tag, "Network connection failed, refreshDisplay = false");
+                Toast.makeText(context, R.string.connection_error, Toast.LENGTH_SHORT).show();
             }
         }
     }
