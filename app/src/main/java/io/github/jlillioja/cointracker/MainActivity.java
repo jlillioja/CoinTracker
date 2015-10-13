@@ -33,8 +33,6 @@ public class MainActivity extends Activity {
 
     public static boolean refreshDisplay;
 
-    // The user's current network preference setting.
-    public static String sPref = null;
 
     // The BroadcastReceiver that tracks network connectivity changes.
     private NetworkReceiver receiver = new NetworkReceiver();
@@ -112,6 +110,11 @@ public class MainActivity extends Activity {
             return true;
         }
 
+        if (id == R.id.action_refresh) {
+            Toast.makeText(getApplicationContext(), "Refreshing...", Toast.LENGTH_SHORT).show();
+            loadPage();
+        }
+
         return super.onOptionsItemSelected(item);
     }
 
@@ -158,6 +161,7 @@ public class MainActivity extends Activity {
         @Override
         protected void onPostExecute(String result) {
             // Displays the HTML string in the UI via a WebView
+            listAdapter.clear();
             listAdapter.add(result);
         }
     }
