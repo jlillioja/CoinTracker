@@ -110,6 +110,11 @@ public class MainActivity extends Activity {
             return true;
         }
 
+        if (id == R.id.action_add) {
+            Intent intent = new Intent(this, AddAddressActivity.class);
+            startActivity(intent);
+        }
+
         if (id == R.id.action_refresh) {
             Toast.makeText(getApplicationContext(), "Refreshing...", Toast.LENGTH_SHORT).show();
             loadPage();

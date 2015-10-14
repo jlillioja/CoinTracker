@@ -2,8 +2,14 @@
     xmlns:tools="http://schemas.android.com/tools" tools:context=".MainActivity">
     <item
         android:id="@+id/action_refresh"
-        android:title="Refresh"
+        android:title="@string/action_refresh"
         android:orderInCategory="1"
+        android:showAsAction="ifRoom"
+        />
+    <item
+        android:id="@+id/action_add"
+        android:title="@string/action_add_address"
+        android:orderInCategory="2"
         android:showAsAction="ifRoom"
         />
     <item
