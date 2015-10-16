@@ -19,6 +19,7 @@ import android.widget.ListView;
 import android.widget.Toast;
 
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -133,7 +134,7 @@ public class MainActivity extends Activity {
                 .appendPath(addresses.getString("address1", "0"))
                 .appendQueryParameter("format", "json");
         String URL = builder.build().toString();
-        Log.d(tag, "URL constructed: "+URL);
+        Log.d(tag, "URL constructed: " + URL);
         new DownloadJsonTask().execute(URL);
     }
 
@@ -147,53 +148,62 @@ public class MainActivity extends Activity {
         listAdapter.add(getResources().getString(R.string.connection_error));
     }
 
-    private class DownloadJsonTask extends AsyncTask<String, Void, String> {
+    private class DownloadJsonTask extends AsyncTask<String, Void, JSONObject> {
+
+        private static final String TAG_FINAL_BALANCE = "final_balance";
 
         @Override
-        protected String doInBackground(String... urls) {
+        protected JSONObject doInBackground(String... urls) {
             Log.d(tag, "Doing in background: loadJsonFromNetwork "+urls[0]);
             try {
                 return loadJsonFromNetwork(urls[0]);
             } catch (IOException e) {
                 Log.d(tag, "DownloadJsonTask.doInBackground threw IOException");
-                return getResources().getString(R.string.connection_error);
+                return null;
             } catch (JSONException e) {
                 Log.d(tag, "DownloadJsonTask.doInBackground threw JSONException");
-                return getResources().getString(R.string.json_error);
+                return null;
             }
         }
 
         @Override
-        protected void onPostExecute(String result) {
+        protected void onPostExecute(JSONObject result) {
             // Displays the HTML string in the UI via a WebView
             listAdapter.clear();
-            listAdapter.add(result);
-        }
-    }
-
-    private String loadJsonFromNetwork(String urlString) throws JSONException, IOException {
-        InputStream stream = null;
-        String balance = null;
-        String title = null;
-        String url = null;
-        String summary = null;
-        Calendar rightNow = Calendar.getInstance();
-        DateFormat formatter = new SimpleDateFormat("MMM dd h:mmaa");
-
-        try {
-            stream = downloadUrl(urlString);
-            JsonParser jsonParser = new JsonParser();
-            balance = jsonParser.parse(stream);
-            // Makes sure that the InputStream is closed after the app is
-            // finished using it.
-        } finally {
-            if (stream != null) {
-                stream.close();
+            try {
+                listAdapter.add(result.getString(TAG_FINAL_BALANCE));
+            } catch (JSONException e) {
+                e.printStackTrace();
             }
         }
 
-        return balance;
+        private JSONObject loadJsonFromNetwork(String urlString) throws JSONException, IOException {
+            InputStream stream = null;
+            //String balance = null;
+            String title = null;
+            String url = null;
+            String summary = null;
+            Calendar rightNow = Calendar.getInstance();
+            DateFormat formatter = new SimpleDateFormat("MMM dd h:mmaa");
+            JSONObject json = null;
+
+            try {
+                stream = downloadUrl(urlString);
+                JsonParser jsonParser = new JsonParser();
+                json = jsonParser.parse(stream);
+                // Makes sure that the InputStream is closed after the app is
+                // finished using it.
+            } finally {
+                if (stream != null) {
+                    stream.close();
+                }
+            }
+
+            return json;
+        }
     }
+
+
 
     private InputStream downloadUrl(String urlString) throws IOException {
         URL url = new URL(urlString);
